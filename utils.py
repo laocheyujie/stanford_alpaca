@@ -39,6 +39,8 @@ class OpenAIDecodingArguments(object):
 def openai_completion(
     prompts: Union[str, Sequence[str], Sequence[dict[str, str]], dict[str, str]],
     decoding_args: OpenAIDecodingArguments,
+    api_base=None,
+    api_key=None,
     model_name="text-davinci-003",
     sleep_time=2,
     batch_size=1,
@@ -99,6 +101,8 @@ def openai_completion(
         while True:
             try:
                 shared_kwargs = dict(
+                    api_base=api_base,
+                    api_key=api_key,
                     model=model_name,
                     **batch_decoding_args.__dict__,
                     **decoding_kwargs,

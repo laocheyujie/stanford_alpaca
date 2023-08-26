@@ -5,6 +5,8 @@ run:
 python -m generate_instruction generate_instruction_following_data \
   --output_dir ./ \
   --num_instructions_to_generate 10 \
+  --api_base="https://hackathon.meridian.today/v1" \
+  --api_key="sk-xxx" \
   --model_name="text-davinci-003" \
 """
 import time   # 引入时间模块
@@ -138,6 +140,8 @@ def generate_instruction_following_data(
     output_dir="./",
     seed_tasks_path="./seed_tasks.jsonl",
     num_instructions_to_generate=100,
+    api_base=None,
+    api_key=None,
     model_name="text-davinci-003",
     num_prompt_instructions=3,
     request_batch_size=5,
@@ -206,6 +210,8 @@ def generate_instruction_following_data(
         # 调用OpenAI API进行批量生成
         results = utils.openai_completion(
             prompts=batch_inputs,
+            api_base=api_base,
+            api_key=api_key,
             model_name=model_name,
             batch_size=request_batch_size,
             decoding_args=decoding_args,
