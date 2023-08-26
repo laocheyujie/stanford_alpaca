@@ -41,6 +41,7 @@ def openai_completion(
     decoding_args: OpenAIDecodingArguments,
     api_base=None,
     api_key=None,
+    api="completion",
     model_name="text-davinci-003",
     sleep_time=2,
     batch_size=1,
@@ -57,6 +58,7 @@ def openai_completion(
             it can also be a dictionary (or list thereof) as explained here:
             https://github.com/openai/openai-cookbook/blob/main/examples/How_to_format_inputs_to_ChatGPT_models.ipynb
         decoding_args: Decoding arguments.
+        api: 'completion' for openai.Completion or 'chat' for openai.ChatCompletion
         model_name: Model name. Can be either in the format of "org/model" or just "model".
         sleep_time: Time to sleep once the rate-limit is hit.
         batch_size: Number of prompts to send in a single request. Only for non chat model.
@@ -75,6 +77,12 @@ def openai_completion(
     is_single_prompt = isinstance(prompts, (str, dict))
     if is_single_prompt:
         prompts = [prompts]
+        
+    if api not in {"completion", "chat"}:
+        raise ValueError(f"Unsupported API type: {api}")
+    if api == "chat":
+        logging.warning(f"Chat API only supports batch size = 1, overriding requested batch size of {batch_size} .")
+        batch_size = 1
 
     if max_batches < sys.maxsize:
         logging.warning(
@@ -107,7 +115,22 @@ def openai_completion(
                     **batch_decoding_args.__dict__,
                     **decoding_kwargs,
                 )
-                completion_batch = openai.Completion.create(prompt=prompt_batch, **shared_kwargs)
+                if api == "completion":
+                    completion_batch = openai.Completion.create(prompt=prompt_batch, **shared_kwargs)
+                elif api == "chat":
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are ChatGPT, a large language model trained by OpenAI. You answer as concisely as possible for each response (e.g. don\u2019t be verbose). It is very important that you answer as concisely as possible, so please remember this. If you are generating a list, do not have too many items. Keep the number of items short."
+                        },
+                        {
+                            "role": "user",
+                            "content": prompt_batch[0]
+                        }
+                    ]
+                    for unused_key in ["suffix", "logprobs", "echo"]:
+                        shared_kwargs.pop(unused_key, None)
+                    completion_batch = openai.ChatCompletion.create(messages=messages, **shared_kwargs)
                 choices = completion_batch.choices
 
                 for choice in choices:
@@ -124,7 +147,10 @@ def openai_completion(
                     time.sleep(sleep_time)  # Annoying rate limit on requests.
 
     if return_text:
-        completions = [completion.text for completion in completions]
+        if api == "completion":
+            completions = [completion.text.encode('utf-8').decode('utf-8') for completion in completions]
+        elif api == "chat":
+            completions = [completion.message.content.encode('utf-8').decode('utf-8') for completion in completions]
     if decoding_args.n > 1:
         # make completions a nested list, where each entry is a consecutive decoding_args.n of original entries.
         completions = [completions[i : i + decoding_args.n] for i in range(0, len(completions), decoding_args.n)]
@@ -139,7 +165,7 @@ def _make_w_io_base(f, mode: str):
         f_dirname = os.path.dirname(f)
         if f_dirname != "":
             os.makedirs(f_dirname, exist_ok=True)
-        f = open(f, mode=mode)
+        f = open(f, mode=mode, encoding="utf-8")
     return f
 
 

@@ -7,7 +7,8 @@ python -m generate_instruction generate_instruction_following_data \
   --num_instructions_to_generate 10 \
   --api_base="https://hackathon.meridian.today/v1" \
   --api_key="sk-xxx" \
-  --model_name="text-davinci-003" \
+  --model_name="gpt-3.5-turbo" \
+  --api=chat
 """
 import time   # 引入时间模块
 import json   # 引入json模块
@@ -55,7 +56,17 @@ def post_process_gpt3_response(num_prompt_instructions, response):
     if response is None:
         return []
     # 获取原始的指令文本
-    raw_instructions = f"{num_prompt_instructions+1}. Instruction:" + response["text"]
+    try: 
+        # for gpt-3.5-turbo
+        raw_instructions = response["message"]["content"]
+    except:
+        try:
+            # for text-davinci-003
+            raw_instructions = response["text"]
+        except:
+            print("ERROR parse!")
+    if 'Instruction:' not in raw_instructions[0: 10] and 'Instruction：' not in raw_instructions[0: 10]:
+        raw_instructions = f"{num_prompt_instructions+1}. Instruction:" + raw_instructions
     # 根据"###"切分原始指令
     raw_instructions = re.split("###", raw_instructions)
     # 初始化指令列表
@@ -142,6 +153,7 @@ def generate_instruction_following_data(
     num_instructions_to_generate=100,
     api_base=None,
     api_key=None,
+    api="completion",
     model_name="text-davinci-003",
     num_prompt_instructions=3,
     request_batch_size=5,
@@ -212,6 +224,7 @@ def generate_instruction_following_data(
             prompts=batch_inputs,
             api_base=api_base,
             api_key=api_key,
+            api=api,
             model_name=model_name,
             batch_size=request_batch_size,
             decoding_args=decoding_args,
